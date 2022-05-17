@@ -181,7 +181,7 @@ gg.detfc <- function(species,
     x <- (finebr[i] + finebr[i + 1])/2
     xgrid <- c(xgrid, x)
     newdat$distance <- rep(x, nrow(newdat))
-    detfct.values <- detfct(newdat$distance, ddfobj, select = selected, width = width)
+    detfct.values <- mrds::detfct(newdat$distance, ddfobj, select = selected, width = width)
     linevalues <- c(linevalues, sum(detfct.values/pdot)/sum(1/pdot))
   }
   y.avg <- linevalues

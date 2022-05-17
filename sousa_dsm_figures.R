@@ -44,8 +44,8 @@ make_fig1()
 
 # Figure 2 ----------------------------------------------------------------
 
-d1 <- gg.detfc("sousa", "HR_size", group.size = c(1, 5, 20))
-d2 <- gg.detfc("tursiops", "HR_size", group.size = c(1, 5, 20))
+d1 <- gg.detfc("sousa", "HR_size", group.size = c(1, 5, 10, 20))
+d2 <- gg.detfc("tursiops", "HR_size", group.size = c(1, 5, 10, 20))
 fig2 <- (d1 + d2) + plot_annotation(tag_levels = 'A') & 
   theme(plot.tag = element_text(face = "bold", size = 30))
 ggsave(filename = "out/fig2.pdf", plot = fig2, height = 5, width = 11, dpi = 450)
