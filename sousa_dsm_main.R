@@ -7,7 +7,7 @@
 #                                                          #
 ##%######################################################%##
 
-# Authors: Raudino et al. (2022)
+# Authors: Raudino et al.
 
 # Required libraries ------------------------------------------------------
 
@@ -15,6 +15,7 @@ library(pacman)
 pacman::p_load(raster,         # Geographic Data Analysis and Modeling 
                magrittr,       # Pipes
                sf,             # Simple features for r
+               s2,             # Spherical geometry
                here,           # Simpler way to find files
                sp,             # Classes and Methods for Spatial Data
                Distance,       # Distance Sampling
@@ -174,6 +175,16 @@ hexgrid <- purrr::map(.x = study_area,
                                          what = "polygons",
                                          crs = sf::st_crs(wa),
                                          square = FALSE) %>% 
+                          sf::st_sf(ID = 1:length(lengths(.)), .)}) # Add index
+
+# Create raster grid for predictions
+hexgrid <- purrr::map(.x = study_area,
+                      .f = ~{
+                        sf::st_make_grid(x = .x,
+                                         cellsize = spatial.scale, # in m
+                                         what = "polygons",
+                                         crs = sf::st_crs(wa),
+                                         square = TRUE) %>% 
                           sf::st_sf(ID = 1:length(lengths(.)), .)}) # Add index
 
 # Quick plots
@@ -406,8 +417,7 @@ detfc.models <- c("HN", # Half-Normal
                   "HN_Beaufort", # HN with Beaufort
                   "HR_Beaufort", # HR with Beaufort
                   "HN_size", # HN with group size
-                  "HR_size", # HR with group size
-                  "Unif_cosine") # Uniform with cosine adjustment
+                  "HR_size") # HR with group size
 
 detfc <- purrr::map(.x = dolphin.species,
                     .f = ~{
@@ -450,33 +460,34 @@ detfc.comp <- lapply(
     purrr::map_df(.x = detfc[[p]], .f = ~ AIC(.x)) %>%
       dplyr::mutate(model = detfc.models[1:6]) %>%
       dplyr::mutate(delta_aic = AIC - min(AIC)) %>%
-      dplyr::arrange(delta_aic)
-  }
-) %>%
-  purrr::set_names(., dolphin.species)
+      dplyr::arrange(delta_aic) |> 
+      dplyr::mutate(species = p)
+  } 
+) |> do.call(what = rbind)
+row.names(detfc.comp) <- NULL
 
 CvM <- lapply(
   X = dolphin.species,
-  FUN = function(p) {
-    purrr::map_df(.x = detfc[[p]], .f = ~ Distance::gof_ds(.x)$dsgof$CvM)})
+  FUN = function(pp) {
+    modname <- names(detfc[[pp]])
+    purrr::map_df(.x = detfc[[pp]], .f = ~ Distance::gof_ds(.x)$dsgof$CvM) |> 
+      dplyr::mutate(species = pp, model = modname)}) |> 
+  do.call(what = rbind)
 
-detfc.comp <- purrr::map2(.x = detfc.comp, .y = CvM, 
-                          .f = ~dplyr::select(.y, p) %>% 
-                            dplyr::bind_cols(.x, .))
-row.names(detfc.comp[[1]]) <- NULL
-row.names(detfc.comp[[2]]) <- NULL
+detfc.comp <- dplyr::left_join(detfc.comp, CvM, by = c("species", "model")) |> 
+  dplyr::arrange(species, AIC)
 
 # Identify best models according to the AIC
-detfc.best <- lapply(X = dolphin.species,
-                     FUN = function(p){
-                       detfc.comp[[p]][1, ]$model}) %>%
+detfc.best <- lapply(X = dolphin.species, FUN = function(x){
+                       xdf <- detfc.comp[detfc.comp$species == x,]
+                       xdf[xdf$AIC == min(xdf$AIC),]$model}) %>%
   purrr::set_names(., dolphin.species)
 
 # Model checks - AIC is not always a cookbook
 plot_detfc(model.rank = c(1, 1))
-plot_detfc(model.rank = c(1, 4))
+plot_detfc(model.rank = c(2, 3))
 
-# detfc.best$sousa <- "HR_size"
+detfc.best$sousa <- detfc.best$tursiops <- "HN_size"
 
 # Soap film smoother ---------------------------------------------------------------
 
@@ -599,44 +610,6 @@ while (is.null(text.counter)){
   }
 }
 
-# test.dsm.soap <- dsm(formula = abundance.est ~
-#                   s(x, y, bs = "so", k = 30, xt = list(bnd = list(survey_area$`2016_2017`))),
-#                 ddf.obj = detfc[["tursiops"]][[detfc.best[["tursiops"]]]],
-#                 segment.data = data.frame(seg.df.soap$`2016_2017`),
-#                 knots = knots.2016_2017,
-#                 observation.data = data.frame(obs.df$tursiops[obs.df$tursiops$year == 2016, ]),
-#                 method = "REML",
-#                 family = tw())
-
-# test.dsm <- dsm(formula = abundance.est ~
-#                   s(x, y, bs = "tp", k = 30), 
-#                 ddf.obj = detfc[["tursiops"]][[detfc.best[["tursiops"]]]],
-#                 segment.data = data.frame(seg.df.soap$`2016_2017`),
-#                 # knots = knots.2016_2017,
-#                 observation.data = data.frame(obs.df$tursiops[obs.df$tursiops$year == 2016, ]),
-#                 method = "REML",
-#                 family = tw())
-
-# preddata.varprop <- split(pred.df.soap$`2016_2017`, 1:nrow(pred.df.soap$`2016_2017`))
-# testvar <- dsm.var.gam(test.dsm.soap, pred.data=preddata.varprop, off.set=pred.df.soap$`2016_2017`$area)
-# testvar
-# 
-# # Prediction data.frame
-# newdat <- pred.df.soap$`2016_2017`
-# preddf <- hexgrid$`2016_2017`[pred.onoff$`2016_2017`,] # As hexgrid is an sf object
-# preddf$Nhat <- predict(object = test.dsm.soap, 
-#                        newdata = newdat, 
-#                        off.set = newdat$area)
-# ggplot(data = preddf) + 
-#   geom_sf(fill = "white", col = "transparent") +
-#   geom_sf(aes(fill = Nhat), col = "transparent") +
-#   geom_point(data = sightings$tursiops[sightings$tursiops$year == 2016,], aes(x,y,col=factor(year), size = size)) +
-#   geom_sf(data = study_area_coastline$`2016_2017`,
-#           fill = "transparent", col = "black", size = 0.25) +
-#   scale_fill_gradientn(colours = pals::viridis(1000)) + 
-#   theme(legend.text = element_text(colour = "black", size = 14),
-#         legend.title = element_blank())
-
 # Checks the soap film
 par(mfrow = c(1, 2))
 purrr::map2(
@@ -645,7 +618,7 @@ purrr::map2(
   .f = ~ soap_check(bnd = list(list(x = .x$x, y = .x$y)), knots = .y, tol = 1e-6))
 
 hexgridpred <- purrr::map2(.x = hexgrid, .y = pred.onoff, .f = ~.x[.y,])
-
+par(mfrow = c(1, 1))
 
 # Spatial models -----------------------------------------------------------
 

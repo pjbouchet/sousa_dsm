@@ -9,6 +9,8 @@
 
 # Authors: Raudino et al. (2022)
 
+mean_ras <- function(x, ...){mean(x, na.rm = TRUE)}
+
 ##%######################################################%##
 #                                                          #
 #'###           Wrapper function to get basic            ####
@@ -23,12 +25,15 @@ plot_detfc <- function(model.rank = c(1, 1)){
   par(mfrow = c(2, 2))
   purrr::walk(.x = 1:length(dolphin.species), 
               .f = ~{
-                model.name <- detfc.comp[[.x]]$model[model.rank[.x]]
                 species.name <- dolphin.species[.x]
-                plot(detfc[[.x]][[model.name]], 
+                ddf <- detfc.comp[detfc.comp$species == species.name,]
+                model.name <- ddf$model[model.rank[.x]]
+                
+                plot(detfc[[species.name]][[model.name]], 
                      showpoints = FALSE, pl.den = 0, lwd = 2,
                      main = paste0(species.name, " (", model.name, ")"))
-                ddf.gof(detfc[[.x]][[model.name]]$ddf)
+                
+                ddf.gof(detfc[[species.name]][[model.name]]$ddf)
               }) 
 }
 
@@ -181,7 +186,7 @@ gg.detfc <- function(species,
     x <- (finebr[i] + finebr[i + 1])/2
     xgrid <- c(xgrid, x)
     newdat$distance <- rep(x, nrow(newdat))
-    detfct.values <- mrds::detfct(newdat$distance, ddfobj, select = selected, width = width)
+    detfct.values <- mrds:::detfct(newdat$distance, ddfobj, select = selected, width = width)
     linevalues <- c(linevalues, sum(detfct.values/pdot)/sum(1/pdot))
   }
   y.avg <- linevalues
@@ -626,6 +631,35 @@ get_cv_gam <- function(dsm.object, pred.data){
 
 make_fig1 <- function(){
   
+  g = s2::as_s2_geography(TRUE) # Earth
+  co = s2::s2_data_countries()
+  au = s2::s2_data_countries("Australia")
+  oc = s2::s2_difference(g, s2_union_agg(co)) # oceans
+  b = s2::s2_buffer_cells(as_s2_geography("POINT(120 -10)"), 9800000) # visible half
+  i = s2::s2_intersection(b, oc) # visible ocean
+  co = s2::s2_intersection(b, co)
+  
+  pilb <- data.frame(lon = c(113, 113, 122, 122), lat = c(-18, -24, -18, -24)) |> 
+    sp::SpatialPoints(proj4string = crs.latlon) |> 
+    sf::st_as_sf() |> st_union() |> 
+    sf::st_convex_hull() |> 
+    sf::st_as_s2()
+  
+  pos <- c(120, -10)
+  pos.proj <- paste0("+proj=ortho +lat_0=", pos[2], " +lon_0=", pos[1])
+  
+  globe.inset <- ggplot() + 
+    geom_sf(data = st_transform(st_as_sfc(i), pos.proj), fill = "#E5E8EA", col = "#E5E8EA", size = 0.1) +
+    geom_sf(data = st_transform(st_as_sfc(co), pos.proj), fill = "#A4BFCF", col = "#A4BFCF", size = 0.1) +
+    geom_sf(data = st_transform(st_as_sfc(au), pos.proj), fill = "#416C83", col = "#416C83", size = 0.1) +
+    geom_sf(data = st_transform(st_as_sfc(pilb), pos.proj), 
+            col = "orange", fill = "transparent", size = 0.6) +
+    theme(panel.background = element_rect(fill = "transparent"),
+          plot.background = element_rect(fill = "transparent", colour = "transparent"),
+          axis.title = element_blank(),
+          axis.text = element_blank(),
+          axis.ticks = element_blank())
+  
   # Cities
   cities <- rbind(tibble::tibble(city = "Exmouth", lat = -21.9313, lon = 114.1237)) %>% 
     rbind(., tibble::tibble(city = "Onslow", lat = -21.6627, lon = 115.1070)) %>% 
@@ -637,16 +671,16 @@ make_fig1 <- function(){
     as_tibble() %>% 
     dplyr::mutate(coords.x1.label = coords.x1, coords.x2.label = coords.x2)
   
-  cities[cities$city == "Exmouth", ]$coords.x1.label <- cities[cities$city == "Exmouth", ]$coords.x1 + 25000
-  cities[cities$city == "Exmouth", ]$coords.x2.label <- cities[cities$city == "Exmouth", ]$coords.x2 + 4500
-  cities[cities$city == "Onslow", ]$coords.x1.label <- cities[cities$city == "Onslow", ]$coords.x1 + 16000
-  cities[cities$city == "Onslow", ]$coords.x2.label <- cities[cities$city == "Onslow", ]$coords.x2 - 13000
-  cities[cities$city == "Karratha", ]$coords.x1.label <- cities[cities$city == "Karratha", ]$coords.x1 - 10500
-  cities[cities$city == "Karratha", ]$coords.x2.label <- cities[cities$city == "Karratha", ]$coords.x2 - 19000
-  cities[cities$city == "Port Hedland", ]$coords.x1.label <- 
-    cities[cities$city == "Port Hedland", ]$coords.x1 + 28000
-  cities[cities$city == "Port Hedland", ]$coords.x2.label <- 
-    cities[cities$city == "Port Hedland", ]$coords.x2 - 13000
+  cities[cities$city == "Exmouth", ]$coords.x1.label <- cities[cities$city == "Exmouth", ]$coords.x1 - 30000
+ cities[cities$city == "Exmouth", ]$coords.x2.label <- cities[cities$city == "Exmouth", ]$coords.x2 + 4500
+ cities[cities$city == "Onslow", ]$coords.x1.label <- cities[cities$city == "Onslow", ]$coords.x1 + 16000
+ cities[cities$city == "Onslow", ]$coords.x2.label <- cities[cities$city == "Onslow", ]$coords.x2 - 13000
+ cities[cities$city == "Karratha", ]$coords.x1.label <- cities[cities$city == "Karratha", ]$coords.x1 - 10500
+ cities[cities$city == "Karratha", ]$coords.x2.label <- cities[cities$city == "Karratha", ]$coords.x2 - 19000
+ cities[cities$city == "Port Hedland", ]$coords.x1.label <-
+   cities[cities$city == "Port Hedland", ]$coords.x1 + 28000
+ cities[cities$city == "Port Hedland", ]$coords.x2.label <-
+   cities[cities$city == "Port Hedland", ]$coords.x2 - 13000
   
   # Combine all transects and add year
   all.transects <- purrr::map2(.x = transects, 
@@ -660,6 +694,7 @@ make_fig1 <- function(){
     geom_sf(data = all.transects, aes(colour = year), fill = "transparent", lwd = 0.4, show.legend = "line") +
     geom_sf(data = transects.overlap, linetype = "dashed") +
     geom_sf(data = wa, col = "#232323", fill = "#e1d4b2", lwd = 0.25) +
+    geom_sf(data = rivers, col = "#3d7899", alpha = 0.85) + 
     geom_point(data = cities, aes(x = coords.x1, y = coords.x2)) + 
     geom_text(data = cities, aes(x = coords.x1.label, y = coords.x2.label, label = city), size = 4)
   
@@ -672,18 +707,51 @@ make_fig1 <- function(){
   
   fig1 <- fig1 +
     
-    annotate("text", x = 245268, y = 7763498, label = "Indian Ocean", 
-             fontface = 'italic', colour = "#3d7899", angle = 25, size = 5) +
-    annotate("text", x = 214461, y = 7646577, label = "North West \n Cape", 
-             fontface = 'italic', colour = "black", angle = 0, size = 3.5) + 
-    annotate("text", x = 366590, y = 7807484, label = "Montebello \n Islands", 
-             fontface = 'italic', colour = "black", angle = 0, size = 3.5) + 
-    annotate("text", x = 477127, y = 7807484, label = "Dampier \n Archipelago", 
-             fontface = 'italic', colour = "black", angle = 0, size = 3.5) +
+    annotate("text", x = 367675, y = 7520362, label = "Ashburton River", 
+             colour = "#3d7899", angle = 0, size = 3) + 
     
-    geom_segment(aes(x = 197328, y = 7576897, xend = 210461, yend = 7626577)) + 
-    geom_segment(aes(x = 346564, y = 7740123, xend = 360590, yend = 7787484)) + 
-    geom_segment(aes(x = 456844, y = 7727229, xend = 474127, yend = 7787484)) + 
+    annotate("text", x = 423003, y = 7585220, label = "Robe River", 
+             colour = "#3d7899", angle = 0, size = 3) + 
+    
+    annotate("text", x = 485587, y = 7640220, label = "Fortescue River", 
+             colour = "#3d7899", angle = 0, size = 3) + 
+    
+    annotate("text", x = 765858, y = 7760283, label = "De Grey River", 
+             colour = "#3d7899", angle = 0, size = 3) + 
+    
+    annotate("text", x = 190361, y = 7734877, label = "North\n West Cape", 
+             fontface = 'bold', colour = "white", angle = 0, size = 4) + 
+    
+    annotate("text", x = 793169.4, y = 7864877, label = "Eighty\n Mile Beach", 
+             fontface = 'bold', colour = "white", angle = 0, size = 4) + 
+    
+    annotate("text", x = 490000, y = 7874877, label = "PILBARA", 
+             fontface = 'bold', colour = "black", angle = 0, size = 4) + 
+    
+    annotate("text", x = 279268, y = 7743498, label = "Indian Ocean", 
+             fontface = 'italic', colour = "white", angle = 25, size = 4) +
+
+    annotate("text", x = 530000, y = 7798884, label = "Nickol Bay",
+             fontface = 'italic', colour = "#3d7899", angle = 0, size = 3.5) + 
+    annotate("text", x = 366590, y = 7807484, label = "Montebello \n Islands", 
+             fontface = 'italic', colour = "#3d7899", angle = 0, size = 3.5) + 
+    annotate("text", x = 455127, y = 7807484, label = "Dampier \n Archipelago", 
+             fontface = 'italic', colour = "#3d7899", angle = 0, size = 3.5) +
+    annotate("text", x = 235361, y = 7651500, label = "Exmouth\n Gulf", 
+             fontface = 'italic', colour = "#3d7899", angle = 0, size = 3.5) +
+    
+    geom_segment(aes(x = 190361, y = 7581500, xend = 190461, yend = 7715877), linetype = "dashed", colour = "white") + 
+    geom_segment(aes(x = 190361, y = 7795877, xend = 190461, yend = 7875877), linetype = "dashed", colour = "white") + 
+    geom_segment(aes(x = 793169.4, y = 7787500, xend = 793169.4, yend = 7844877), linetype = "dashed",
+                 colour = "white") + 
+    
+    geom_segment(aes(x = 346564, y = 7740123, xend = 360590, yend = 7787484), colour = "#3d7899") + 
+    geom_segment(aes(x = 455127, y = 7727229, xend = 455127, yend = 7787484), colour = "#3d7899") + 
+    geom_segment(aes(x = 490154.4, y = 7721234, xend = 520154.4, yend = 7787484), colour = "#3d7899") +     geom_segment(aes(x = 215361, y = 7541500, xend = 235361, yend = 7635500), colour = "#3d7899") +
+    
+    geom_segment(aes(x = 490000 + 35000, y = 7874877, xend = 793169.4 - 25000, yend = 7874877), colour = "black", arrow = arrow(angle = 30, length = unit(0.075, "inches"), ends = "last", type = "closed")) +
+    
+    geom_segment(aes(x = 490000 - 35000, y = 7874877, xend = 190361 + 25000, yend = 7874877), colour = "black", arrow = arrow(angle = 30, length = unit(0.075, "inches"), ends = "last", type = "closed")) +
     
     scale_colour_manual(values = c("black", "white"),  name = "Surveys",
                         guide = guide_legend(override.aes = list(linetype = c("solid", "solid"), 
@@ -696,10 +764,10 @@ make_fig1 <- function(){
                           guide = guide_legend(override.aes = list(linetype = rep("blank", 7), 
                                                                    shape = rep(21, 7), fill = "black"))) +
     coord_sf(expand = TRUE, 
-             xlim = c(sf::st_bbox(all.transects)[1],
-                      sf::st_bbox(all.transects)[3] - 25000),
-             ylim = c(sf::st_bbox(all.transects)[2] - 4000,
-                      sf::st_bbox(all.transects)[4])) +
+             xlim = c(sf::st_bbox(all.transects)[1] - 30000,
+                      sf::st_bbox(all.transects)[3] - 20000),
+             ylim = c(sf::st_bbox(all.transects)[2],
+                      sf::st_bbox(all.transects)[4]+35000)) +
     theme_minimal() +
     xlab("") + ylab("") +
     theme(legend.position = "none", #c(0.82, 0.35)
@@ -709,6 +777,12 @@ make_fig1 <- function(){
           axis.text.y = element_text(colour = "black", size = 12, angle = 90, hjust = 0.5, vjust = 0.5),
           panel.background = element_rect(fill = "#bad8e0", colour = "#bad8e0", size = 0.5, linetype = "solid"),
           panel.grid.major = element_line(size = 0.1, linetype = 'solid', colour = "#93bac4"))
+  
+  fig1 <- fig1 + ggsn::north(data = all.transects, location = "topleft", anchor = unlist(list(x = 490700, y = 7545000)), symbol = 12, scale = 0.05) + 
+    annotate("text", label = "N", x = 506700, y = 7555000, size = 4.5, fontface = "bold") +
+    ggsn::scalebar(all.transects, dist = 50, dist_unit = "km", transform = FALSE, model = "WGS84",
+                   border.size = 0.35, st.dist = 0.03, st.size = 4, 
+                   anchor = unlist(list(x = 556700, y = 7515000)))
   
   fig1.legend <- fig1 +
     geom_sf(data = sightings.sf, aes(size = size, fill = species), pch = 21, show.legend = "point") +
@@ -724,14 +798,13 @@ make_fig1 <- function(){
           panel.background = element_rect(fill = "#bad8e0", colour = "#bad8e0", size = 0.5, linetype = "solid"),
           panel.grid.major = element_line(size = 0.1, linetype = 'solid', colour = "#93bac4"))
   
-  fig1 <- fig1 + ggsn::north(data = all.transects, location = "topleft", anchor = unlist(list(x = 180691, y = 7825095)), symbol = 12, scale = 0.05) + 
-    annotate("text", label = "N", x = 196700, y = 7833600, size = 4.5, fontface = "bold") +
-    ggsn::scalebar(all.transects, dist = 50, dist_unit = "km", transform = FALSE, model = "WGS84",
-                   border.size = 0.35, st.dist = 0.03, st.size = 4, 
-                   anchor = unlist(list(x = 556700, y = 7515000)))
+  
   
   fig1.legend <- ggpubr::get_legend(fig1.legend)
   fig1.legend <- as_ggplot(fig1.legend)
+  
+  
+  fig1 <- fig1 + patchwork::inset_element(globe.inset, -0.125, 0.65, 0.3, 0.95)
   
   inset.pos <- purrr::map(.x = LETTERS[1:n.insets], 
                           .f = ~{

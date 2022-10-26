@@ -33,7 +33,7 @@ mrds.gof.list <- mrds.model.list <-
        sousa = list(FI = init.list, PI = init.list))
 
 for(i in 1:nrow(mrds.df)){
-  
+  print(i)
   plot.title <- paste0(stringr::str_to_sentence(mrds.df$species[i]), " (", mrds.df$year[i], ")")
   cat(plot.title, "--------------------\n")
   
@@ -53,7 +53,7 @@ for(i in 1:nrow(mrds.df)){
   detections$distance <- detections$distance - 100
   detections <- na.omit(detections)
 
-  pdf(file = paste0("data/mrds/", mrds.df$species[i], "_", mrds.df$year[i], "_plots.pdf"))
+  # pdf(file = paste0("data/mrds/", mrds.df$species[i], "_", mrds.df$year[i], "_plots.pdf"))
   par(mfrow = c(2, 2))
   
   # Full independence (FI) ------------------------------------------------------
@@ -131,10 +131,10 @@ for(i in 1:nrow(mrds.df)){
   # by combining the shape of the detection function estimated from the DS model and 
   # the intercept parameter obtained from the MR model.
   
-  # Fit trial configuration with point independence model
-  pi.mr.dist <- mrds.model.list[[mrds.df$species[i]]]$PI[[as.character(mrds.df$year[i])]][["nocovariate"]] <- ddf(method = 'io', 
+  pi.mr.dist <- mrds.model.list[[mrds.df$species[i]]]$PI[[as.character(mrds.df$year[i])]][["nocovariate"]] <- 
+    ddf(method = 'io', 
                     mrmodel = ~glm(link = 'logit', formula = as.formula(fi.results$MRmodel[1])),
-                    dsmodel = ~cds(key = 'hn'), 
+                    dsmodel = ~cds(key = "hr"), 
                     data = detections,
                     meta.data = list(width = trunc.dist[[mrds.df$species[i]]]))
   
@@ -155,7 +155,7 @@ for(i in 1:nrow(mrds.df)){
     tryCatch(pi.model <- mrds::ddf(
       method = "io", 
       mrmodel = ~ glm(link = "logit", formula = as.formula(fi.results$MRmodel[1])),
-      dsmodel = ~ mcds(key = "hn", formula = as.formula(ds.formula[mod])),
+      dsmodel = ~ mcds(key = "hr", formula = as.formula(ds.formula[mod])),
       data = detections, 
       meta.data = list(width = trunc.dist[[mrds.df$species[[i]]]])),
     error = function(e) NA)
@@ -172,7 +172,7 @@ for(i in 1:nrow(mrds.df)){
     mrds::ddf(
       method = "io",
       mrmodel = ~ glm(link = "logit", formula = as.formula(fi.results$MRmodel[1])),
-      dsmodel = ~ mcds(key = "hn", formula = as.formula(pi.results$DSmodel[1])),
+      dsmodel = ~ mcds(key = "hr", formula = as.formula(pi.results$DSmodel[1])),
       data = detections,
       meta.data = list(width = trunc.dist[[mrds.df$species[i]]]))
   
@@ -198,7 +198,7 @@ for(i in 1:nrow(mrds.df)){
     mrds.df$p0.SE[i] <- round(mysum$average.p0.se, 3)
     }
 
-  dev.off()
+  # dev.off()
 
   if(i == 3){
   mrds.df$p0[3] <- round(summary(pi.mr.dist)$mr.summary$average.p0, 3)
@@ -209,4 +209,4 @@ for(i in 1:nrow(mrds.df)){
   
 } # End for i
 
-save(mrds.df, mrds.gof.list, mrds.model.list, file = "data/sousa_mrds.RData")
+# save(mrds.df, mrds.gof.list, mrds.model.list, file = "data/sousa_mrds.RData")
